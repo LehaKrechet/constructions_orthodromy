@@ -2,70 +2,19 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Расчет ортодромии</title>
+    <title>Расчет ортодромии и зон запрета</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: sans-serif;
-            display: flex;
-            height: 100vh;
-        }
-        #sidebar {
-            width: 320px;
-            padding: 20px;
-            background: #f8f9fa;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        #map {
-            flex-grow: 1;
-            height: 100%;
-        }
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        input {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        input, select {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-            background-color: white;
-        }
-        button {
-            padding: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        .coordinates-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
+        body { margin: 0; padding: 0; font-family: sans-serif; display: flex; height: 100vh; }
+        #sidebar { width: 320px; padding: 20px; background: #f8f9fa; box-shadow: 2px 0 5px rgba(0,0,0,0.1); z-index: 1000; display: flex; flex-direction: column; gap: 15px; }
+        #map { flex-grow: 1; height: 100%; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; background-color: white; }
+        button { padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        button:hover { background: #0056b3; }
+        .coordinates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .hint { font-size: 12px; color: #666; font-style: italic; }
     </style>
 </head>
 <body>
@@ -105,31 +54,210 @@
     </div>
 
     <div class="input-group">
-        <label>Количество рассчитываемых точек</label>
-        <input type="number" id="points" value="10" min="1">
+        <label>Количество точек</label>
+        <input type="number" id="points" value="100" min="1">
     </div>
 
     <button id="submitBtn">Построить линию</button>
+    <hr style="width:100%; border:0; border-top:1px solid #ccc;">
+    <p class="hint">Используйте панель на карте слева, чтобы нарисовать новые зоны запрета.</p>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script>
-    // Инициализация карты
     const map = L.map('map').setView([55.75, 37.61], 4);
 
-    // Добавление слоя карты (OpenStreetMap)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Переменная для хранения слоя текущей линии (чтобы стирать старую перед отрисовкой новой)
-    let currentPolyline = null;
+    let currentPolyline = null;       
+    let intersectionLayers = [];     
+    let rawPolygonsData = [];       
+    
+    // Создаем FeatureGroup для хранения и отображения полигонов зон запрета
+    const drawnItems = new L.FeatureGroup().addTo(map);
 
-    // Функция отправки данных на сервер
+    // Настройка панели рисования
+    const drawControl = new L.Control.Draw({
+        edit: {
+            featureGroup: drawnItems,
+            remove: true
+        },
+        draw: {
+            polygon: {
+                allowIntersection: false,
+                shapeOptions: {
+                    color: '#333333',
+                    fillColor: '#999999',
+                    fillOpacity: 0.3
+                }
+            },
+            polyline: false,
+            rectangle: false,
+            circle: false,
+            marker: false,
+            circlemarker: false
+        }
+    });
+    map.addControl(drawControl);
+
+    // Функция загрузки полигонов с сервера
+    async function loadPolygons() {
+        try {
+            let response = await fetch('/get_polygons'); 
+            let polygonsArray = await response.json();
+            
+            rawPolygonsData = polygonsArray; // Сохраняем исходные [lon, lat] данные
+            drawnItems.clearLayers();
+            
+            polygonsArray.forEach(coords => {
+                // Leaflet принимает [lat, lon], поэтому инвертируем при отрисовке
+                const leafletCoords = coords.map(pt => [pt[1], pt[0]]);
+                var poly = L.polygon(leafletCoords, {
+                    color: '#333333',
+                    fillColor: '#999999',
+                    fillOpacity: 0.2
+                });
+                poly.addTo(drawnItems);
+            });
+            
+            if(drawnItems.getLayers().length > 0) {
+                map.fitBounds(drawnItems.getBounds());
+            }
+        } catch (error) {
+            console.error("Ошибка при получении полигонов:", error);
+        }
+    }
+
+    // Добавление полигона
+    map.on(L.Draw.Event.CREATED, async function (event) {
+        const layer = event.layer;
+        
+        // Получаем координаты из созданного объекта Leaflet
+        const leafletCoords = layer.getLatLngs()[0];
+        
+        const backendCoords = leafletCoords.map(latlng => [latlng.lng, latlng.lat]);
+        
+        // Отправляем новый полигон на сервер для сохранения
+        try {
+            const response = await fetch('/add_polygon', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ polygon: backendCoords })
+            });
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                await loadPolygons();
+                await updateMap();
+            }
+        } catch (error) {
+            console.error("Ошибка при сохранении полигона:", error);
+        }
+    });
+    // Удаление полигонов
+    map.on(L.Draw.Event.DELETED, async function (event) {
+        const layers = event.layers;
+        
+        // Перебираем все удаленные слои
+        layers.eachLayer(async function (layer) {
+
+            // Берем координаты удаляемого полигона
+            const leafletCoords = layer.getLatLngs()[0];
+            const backendCoords = leafletCoords.map(latlng => [latlng.lng, latlng.lat]);
+
+            try {
+                const response = await fetch('/delete_polygon', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ polygon: backendCoords })
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    console.log("Полигон успешно удален с сервера");
+                }
+            } catch (error) {
+                console.error("Ошибка при удалении полигона:", error);
+            }
+        });
+
+        // После удаления всех выбранных слоев обновляем данные и пересчитываем линию
+        setTimeout(async () => {
+            await loadPolygons();
+            await updateMap();
+        }, 100); 
+    });
+    // Редактирование полигонов
+    map.on(L.Draw.Event.EDITED, async function (event) {
+        const layers = event.layers;
+        
+        // Собираем все полигоны, которые есть на карте прямо сейчас, чтобы обновить базу полностью
+        const allPolygons = [];
+        drawnItems.eachLayer(function (layer) {
+            const leafletCoords = layer.getLatLngs()[0];
+            const backendCoords = leafletCoords.map(latlng => [latlng.lng, latlng.lat]);
+            allPolygons.push(backendCoords);
+        });
+
+        try {
+            // Отправляем обновленный список полигонов на сервер
+            const response = await fetch('/update_all_polygons', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ polygons: allPolygons })
+            });
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                console.log("Изменения полигонов успешно сохранены");
+                rawPolygonsData = allPolygons;
+                await updateMap(); 
+            }
+        } catch (error) {
+            console.error("Ошибка при сохранении изменений полигонов:", error);
+        }
+    });
+    // Функция проверки пересечений
+    async function checkLineIntersections(lineCoords) {
+        if (!rawPolygonsData || rawPolygonsData.length === 0) return;
+
+        try {
+            intersectionLayers.forEach(layer => map.removeLayer(layer));
+            intersectionLayers = [];
+
+            const response = await fetch('/check_intersections', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    line_coords: lineCoords,
+                    polygons_raw: rawPolygonsData
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success' && data.result.intersects) {
+                data.result.intersected_parts.forEach(segment => {
+                    let redLine = L.polyline(segment, {
+                        color: '#ff0000',  
+                        weight: 5,         
+                        opacity: 1.0,
+                    }).addTo(map);
+                    intersectionLayers.push(redLine);
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка при проверке пересечений:', error);
+        }
+    }
+
+    // Расчет линии ортодромии
     async function updateMap() {
-        // Собираем данные из полей ввода
         const payload = {
             lon1: document.getElementById('lon1').value,
             lat1: document.getElementById('lat1').value,
@@ -140,44 +268,37 @@
         };
 
         try {
-            // Делаем асинхронный POST-запрос на Flask-сервер
             const response = await fetch('/calculate', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-
             const data = await response.json();
 
             if (data.status === 'success') {
-                // Если старая линия существует удаляем её с карты
-                if (currentPolyline) {
-                    map.removeLayer(currentPolyline);
-                }
+                if (currentPolyline) { map.removeLayer(currentPolyline); }
 
+                // Основная ортодромия
                 currentPolyline = L.polyline(data.coords, {
-                    color: '#ff4757',
-                    weight: 4,
+                    color: '#0055ff',
+                    weight: 3,
                     opacity: 0.8
                 }).addTo(map);
 
-                // Автоматически масштабируем карту чтобы линия помещалась в экран целиком
-                map.fitBounds(currentPolyline.getBounds(), { padding: [50, 50] });
-            } else {
-                alert('Ошибка сервера: ' + data.message);
+                await checkLineIntersections(data.coords);
             }
-
         } catch (error) {
-            console.error('Ошибка сети/запроса:', error);
-            alert('Не удалось связаться с сервером.');
+            console.error('Ошибка запроса линии:', error);
         }
     }
 
     document.getElementById('submitBtn').addEventListener('click', updateMap);
     
-    updateMap();
+    async function init() {
+        await loadPolygons();
+        await updateMap();
+    }
+    init();
 </script>
 </body>
 </html>
