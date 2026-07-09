@@ -1,0 +1,26 @@
+{
+  "/calculate": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/get_polygons": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/add_polygon": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/delete_polygon": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/update_all_polygons": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/check_intersections": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  }
+}

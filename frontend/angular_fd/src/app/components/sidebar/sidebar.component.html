@@ -1,0 +1,43 @@
+<div id="sidebar">
+  <h3>Построение ортодромии</h3>
+  
+  <div class="coordinates-grid">
+    <div class="input-group">
+      <label>Долгота 1 (Lon)</label>
+      <input type="number" [(ngModel)]="params.lon1" step="any">
+    </div>
+    <div class="input-group">
+      <label>Широта 1 (Lat)</label>
+      <input type="number" [(ngModel)]="params.lat1" step="any">
+    </div>
+  </div>
+
+  <div class="coordinates-grid">
+    <div class="input-group">
+      <label>Долгота 2 (Lon)</label>
+      <input type="number" [(ngModel)]="params.lon2" step="any">
+    </div>
+    <div class="input-group">
+      <label>Широта 2 (Lat)</label>
+      <input type="number" [(ngModel)]="params.lat2" step="any">
+    </div>
+  </div>
+
+  <div class="input-group">
+    <label>Система координат</label>
+    <select [(ngModel)]="params.coordMode">
+      <option value="CK-42">CK-42(4284)</option>
+      <option value="WGS84">WGS84(4326)</option>
+      <option value="Меркатор">Меркатор(3857)</option>
+    </select>
+  </div>
+
+  <div class="input-group">
+    <label>Количество точек</label>
+    <input type="number" [(ngModel)]="params.points" min="1">
+  </div>
+
+  <button (click)="onSubmit()">Построить линию</button>
+  <hr style="width:100%; border:0; border-top:1px solid #ccc;">
+  <p class="hint">Используйте панель на карте слева, чтобы нарисовать новые зоны запрета.</p>
+</div>
