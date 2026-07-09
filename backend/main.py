@@ -2,6 +2,7 @@ import calculation_orthodrome as calculation_orthodrome
 import calculation_polygon as calculation_polygon
 from flask import Flask, request, jsonify, send_from_directory
 import os
+import bd as bd
 
 app = Flask(__name__)
 
@@ -45,24 +46,30 @@ def calculate():
             "message": str(e)
         }), 400
     
-polygons = [
-    [[67.27, 56.97], [66.02, 70.22], [60.97, 74.63]], 
-    [[141, 70], [151, 69], [153, 59], [133, 60]]
-]
-
 @app.route('/get_polygons', methods=['GET'])
 def get_polygons():
+    try:
+        polygons = bd.get_polygons()
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
     return jsonify(polygons)
 
 @app.route('/add_polygon', methods=['POST'])
 def add_polygon():
     try:
-        global polygons
-
         data = request.get_json()
         new_polygon = data['polygon']
-
-        polygons.append(new_polygon)
+        try:
+            bd.add_polygon(new_polygon)
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"Ошибка при добавлении полигона в базу данных: {str(e)}"
+            }), 400
+        
         return jsonify({
             "status": "success",
             "message": "Polygon added successfully."
@@ -80,12 +87,13 @@ def delete_polygon():
         global polygons
         data = request.get_json()
         del_polygon = data['polygon']
-        updated_polygons = []
-        
-        for upd_poly in polygons:
-            if upd_poly != del_polygon:
-                updated_polygons.append(upd_poly)
-        polygons = updated_polygons
+        try:
+            bd.delete_polygon(del_polygon)
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"Ошибка при удалении полигона из базы данных: {str(e)}"
+            }), 400
         
         return jsonify({
             "status": "success",
@@ -101,11 +109,25 @@ def delete_polygon():
 @app.route('/update_all_polygons', methods=['POST'])
 def update_all_polygons():
     try:
-        global polygons
+        try:
+            bd.delete_polygon()
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"Ошибка при удалении всех полигонов из базы данных: {str(e)}"
+            }), 400
+        
         data = request.get_json()
         new_polygons = data['polygons']
-        polygons = new_polygons
+        try:
+            bd.add_several_polygons(new_polygons)
 
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"Ошибка при добавлении полигонов в базу данных: {str(e)}"
+            }), 400
+        
         return jsonify({
             "status": "success",
             "message": "Polygons updated successfully."
@@ -120,17 +142,14 @@ def update_all_polygons():
 def check_intersections():
     try:
         data = request.get_json()
-        
         line_coords = data['line_coords']
-        polygons_raw = data['polygons_raw']
         
-        result = calculation_polygon.find_intersections(line_coords, polygons_raw)
+        result = bd.find_intersections_in_db(line_coords)
         
         return jsonify({
             "status": "success",
             "result": result
         }), 200
-        
     except Exception as e:
         return jsonify({
             "status": "error",
