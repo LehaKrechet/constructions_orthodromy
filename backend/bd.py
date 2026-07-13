@@ -1,7 +1,10 @@
-import psycopg2
 import os
 import json
 from dotenv import load_dotenv
+from sqlalchemy import Column, Integer, create_engine, literal
+from sqlalchemy.orm import declarative_base, Session, sessionmaker
+from geoalchemy2 import Geometry
+from geoalchemy2.functions import ST_AsGeoJSON, ST_Transform, ST_Intersection, ST_Intersects, ST_Centroid, ST_DWithin
 
 load_dotenv()
 
@@ -10,25 +13,20 @@ DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_PASS = os.getenv("DB_PASS")
 
-def db_exec(cmd, args=None):
-    conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
-    cur = conn.cursor()
-    try:
-        cur.execute(cmd, args)
-        if cur.description: 
-            rows = cur.fetchall()
-            conn.commit()
-            return rows
-        else:
-            conn.commit()
-            return True
-    except Exception as e:
-        conn.rollback()
-        print(f"Ошибка выполнения запроса: {e}")
-        return False
-    finally:
-        cur.close()
-        conn.close()
+
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:5432/{DB_NAME}"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+class ExclusionZone(Base):
+    __tablename__ = 'exclusion_zones'
+    
+    id = Column(Integer, primary_key=True)
+    # Создаем поле для геометрии с типом POLYGON и SRID 4326
+    geom = Column(Geometry(geometry_type='POLYGON', srid=4326))
+
 
 def _coords_to_wkt(polygon_coords):
     """Конвертирует массив [[lon, lat], ...] в формат WKT POLYGON"""
@@ -40,120 +38,123 @@ def _coords_to_wkt(polygon_coords):
     pts_str = ", ".join([f"{float(pt[0])} {float(pt[1])}" for pt in coords])
     return f"POLYGON(({pts_str}))"
 
-def add_polygon(polygon):
+    
+def add_polygon(session: Session, polygon) -> bool:
     try:
         wkt = _coords_to_wkt(polygon)
-        cmd = "INSERT INTO exclusion_zones (geom) VALUES (ST_GeomFromText(%s, 4326));"
-        return db_exec(cmd, (wkt,))
+        new_zone = ExclusionZone(geom=wkt)
+        session.add(new_zone)
+        session.commit()
+        return True
+    
     except Exception as e:
+        session.rollback()
         print(f"Ошибка при добавлении полигона: {e}")
         return False
 
-def add_several_polygons(polygons):
+def add_several_polygons(session: Session, polygons) -> bool:
     try:
-        placeholders = ", ".join(["(ST_GeomFromText(%s, 4326))"] * len(polygons))
-        query = f"INSERT INTO exclusion_zones (geom) VALUES {placeholders};"
-        flat_args = [_coords_to_wkt(poly) for poly in polygons]
-        return db_exec(query, flat_args)
+        zones = [ExclusionZone(geom=_coords_to_wkt(poly)) for poly in polygons]
+        session.add_all(zones)  # Добавляем сразу весь список
+        session.commit()
+        return True
     except Exception as e:
+        session.rollback()
         print(f"Ошибка при добавлении нескольких полигонов: {e}")
         return False
 
-def get_polygons():
+def get_polygons(session: Session):
     try:
-        cmd = "SELECT ST_AsGeoJSON(geom::geometry) FROM exclusion_zones;"
-        rows = db_exec(cmd)
+        # SELECT ST_AsGeoJSON(geom) FROM exclusion_zones;
+        # Использование функций PostGIS через scalar()
+        results = session.query(ST_AsGeoJSON(ExclusionZone.geom)).all()
         
         polygons = []
-        for row in rows:
-            if not row[0]: continue
-            geojson = json.loads(row[0])
+        for r in results:
+            if not r[0]: continue
+            geojson = json.loads(r[0])
             polygons.append(geojson['coordinates'][0])
         return polygons
     except Exception as e:
         print(f"Ошибка при получении полигонов: {e}")
         return []
     
-def delete_polygon(polygon=None):
+def delete_polygon(session: Session, polygon=None) -> bool:
     try:
         if polygon is None:
-            cmd = "DELETE FROM exclusion_zones;"
-            return db_exec(cmd)
+            # Удалить все
+            session.query(ExclusionZone).delete()
+            session.commit()
+            return True
         else:
             wkt = _coords_to_wkt(polygon)
-            # Сравниваем центроиды полигонов 
-            cmd = """
-                DELETE FROM exclusion_zones 
-                WHERE ST_DWithin(
-                    ST_Centroid(geom::geometry)::geography, 
-                    ST_Centroid(ST_GeomFromText(%s, 4326))::geography, 
+            
+            # Удаление по условию ST_DWithin над центроидами
+            # Используем встроенные в GeoAlchemy функции PostGIS
+            stmt = session.query(ExclusionZone).filter(
+                ST_DWithin(
+                    ST_Centroid(ExclusionZone.geom).cast(Geometry(geometry_type='GEOMETRY', srid=4326)),
+                    ST_Centroid(wkt).cast(Geometry(geometry_type='GEOMETRY', srid=4326)),
                     0.1
-                );
-            """
-            return db_exec(cmd, (wkt,))
+                )
+            )
+            stmt.delete(synchronize_session=False)
+            session.commit()
+            return True
     except Exception as e:
+        session.rollback()
         print(f"Ошибка при удалении полигона: {e}")
         return False
 
-def find_intersections_in_db(line_coords_lat_lon):
+def find_intersections_in_db(session: Session, line_coords_lat_lon):
     if not line_coords_lat_lon or len(line_coords_lat_lon) < 2:
         return {"intersects": False, "intersected_parts": []}
         
     try:
-        # Из Leaflet приходят [lat, lon]. Для WKT переводим в формат: lon lat (WGS84)
-        formatted_pts = []
-        for pt in line_coords_lat_lon:
-            lat = float(pt[0])
-            lon = float(pt[1])
-            formatted_pts.append(f"{lon} {lat}")
-            
+        formatted_pts = [f"{float(pt[1])} {float(pt[0])}" for pt in line_coords_lat_lon]
         line_wkt = f"LINESTRING({', '.join(formatted_pts)})"
         
-        # 1. Переводим исходный полигон (geom) из 4326 в Меркатор (3857) -> ST_Transform(geom::geometry, 3857)
-        # 2. Переводим входную линию из 4326 в Меркатор (3857) -> ST_Transform(ST_GeomFromText(%s, 4326), 3857)
-        # 3. Считаем их пересечение на плоскости Меркатора
-        # 4. Результат пересечения переводим ОБРАТНО в WGS84 (4326), чтобы вернуть клиенту
-        cmd = """
-            SELECT ST_AsGeoJSON(
+        # Строим сложный гео-запрос с трансформацией координат через ORM функции:
+        # 1. Фильтруем зоны, которые вообще пересекаются с линией (ST_Intersects в WHERE)
+        # 2. Выбираем ST_AsGeoJSON(ST_Transform(ST_Intersection(...), 4326))
+        line_geom = literal(line_wkt).cast(Geometry(geometry_type='LINESTRING', srid=4326))
+        
+        query_result = session.query(
+            ST_AsGeoJSON(
                 ST_Transform(
-                    ST_SnapToGrid(
-                        ST_Intersection(
-                            ST_Transform(geom::geometry, 3857), 
-                            ST_Transform(ST_GeomFromText(%s, 4326), 3857)
-                        ), 
-                        0.01
+                    ST_Intersection(
+                        ST_Transform(ExclusionZone.geom, 3857), 
+                        ST_Transform(line_geom, 3857)
                     ),
                     4326
                 )
-            ) 
-            FROM exclusion_zones 
-            WHERE ST_Intersects(geom::geometry, ST_GeomFromText(%s, 4326));
-        """
-        
-        rows = db_exec(cmd, (line_wkt, line_wkt))
+            )
+        ).filter(
+            ST_Intersects(ExclusionZone.geom, line_geom)
+        ).all()
+
         intersected_parts = []
         
-        if rows:
-            for row in rows:
-                if not row[0]: continue
-                geojson = json.loads(row[0])
+        for row in query_result:
+            if not row[0]: continue
+            geojson = json.loads(row[0])
+            
+            if geojson['type'] == 'LineString':
+                segment = [[pt[1], pt[0]] for pt in geojson['coordinates']]
+                intersected_parts.append(segment)
                 
-                if geojson['type'] == 'LineString':
-                    segment = [[pt[1], pt[0]] for pt in geojson['coordinates']]
+            elif geojson['type'] == 'MultiLineString':
+                for line in geojson['coordinates']:
+                    segment = [[pt[1], pt[0]] for pt in line]
                     intersected_parts.append(segment)
                     
-                elif geojson['type'] == 'MultiLineString':
-                    for line in geojson['coordinates']:
-                        segment = [[pt[1], pt[0]] for pt in line]
-                        intersected_parts.append(segment)
-                        
-                elif geojson['type'] == 'GeometryCollection':
-                    for geom in geojson['geometries']:
-                        if geom['type'] in ['LineString', 'MultiLineString']:
-                            lines = [geom['coordinates']] if geom['type'] == 'LineString' else geom['coordinates']
-                            for line in lines:
-                                segment = [[pt[1], pt[0]] for pt in line]
-                                intersected_parts.append(segment)
+            elif geojson['type'] == 'GeometryCollection':
+                for geom in geojson['geometries']:
+                    if geom['type'] in ['LineString', 'MultiLineString']:
+                        lines = [geom['coordinates']] if geom['type'] == 'LineString' else geom['coordinates']
+                        for line in lines:
+                            segment = [[pt[1], pt[0]] for pt in line]
+                            intersected_parts.append(segment)
                         
         return {
             "intersects": len(intersected_parts) > 0,

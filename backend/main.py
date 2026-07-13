@@ -1,5 +1,4 @@
 import calculation_orthodrome as calculation_orthodrome
-import calculation_polygon as calculation_polygon
 from flask import Flask, request, jsonify, send_from_directory
 import os
 import bd as bd
@@ -49,7 +48,8 @@ def calculate():
 @app.route('/get_polygons', methods=['GET'])
 def get_polygons():
     try:
-        polygons = bd.get_polygons()
+        with bd.SessionLocal() as session:
+            polygons = bd.get_polygons(session)
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -63,7 +63,9 @@ def add_polygon():
         data = request.get_json()
         new_polygon = data['polygon']
         try:
-            bd.add_polygon(new_polygon)
+            with bd.SessionLocal() as session:
+            # 1. Добавление полигона
+                bd.add_polygon(session, new_polygon)
         except Exception as e:
             return jsonify({
                 "status": "error",
@@ -88,7 +90,9 @@ def delete_polygon():
         data = request.get_json()
         del_polygon = data['polygon']
         try:
-            bd.delete_polygon(del_polygon)
+            with bd.SessionLocal() as session:
+                bd.delete_polygon(session, del_polygon)
+
         except Exception as e:
             return jsonify({
                 "status": "error",
@@ -110,7 +114,8 @@ def delete_polygon():
 def update_all_polygons():
     try:
         try:
-            bd.delete_polygon()
+            with bd.SessionLocal() as session:
+                bd.delete_polygon(session, None)
         except Exception as e:
             return jsonify({
                 "status": "error",
@@ -120,7 +125,8 @@ def update_all_polygons():
         data = request.get_json()
         new_polygons = data['polygons']
         try:
-            bd.add_several_polygons(new_polygons)
+            with bd.SessionLocal() as session:
+                bd.add_several_polygons(session, new_polygons)
 
         except Exception as e:
             return jsonify({
@@ -143,8 +149,9 @@ def check_intersections():
     try:
         data = request.get_json()
         line_coords = data['line_coords']
-        
-        result = bd.find_intersections_in_db(line_coords)
+        with bd.SessionLocal() as session:
+
+            result = bd.find_intersections_in_db(session, line_coords)
         
         return jsonify({
             "status": "success",
