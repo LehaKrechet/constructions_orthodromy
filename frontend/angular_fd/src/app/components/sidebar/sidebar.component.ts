@@ -16,12 +16,19 @@ export class SidebarComponent {
     lon2: 160.75293945312,
     lat2: 55.855275,
     points: 100,
-    coordMode: 'WGS84'
+    coordMode: 'WGS84',
+    lon: 37,
+    lat: 55,
+    radius: 100
   };
 
   constructor(private mapStateService: MapStateService) {}
 
   onSubmit() {
     this.mapStateService.triggerCalculation(this.params);
+  }
+
+  onSubmit_circle() {
+    this.mapStateService.triggerCircleCalculation(this.params);
   }
 }

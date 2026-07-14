@@ -38,6 +38,26 @@
   </div>
 
   <button (click)="onSubmit()">Построить линию</button>
+
+  <h3>Исследуемая окружность</h3>
+  
+  <div class="coordinates-grid">
+    <div class="input-group">
+      <label>Долгота(Lon)</label>
+      <input type="number" [(ngModel)]="params.lon" step="any">
+    </div>
+    <div class="input-group">
+      <label>Широта(Lat)</label>
+      <input type="number" [(ngModel)]="params.lat" step="any">
+    </div>
+        <div class="input-group">
+      <label>Радиус (м)</label>
+      <input type="number" [(ngModel)]="params.radius" step="any">
+    </div>
+  </div>
+  <button (click)="onSubmit_circle()">Построить окружность</button>
+
+  
   <hr style="width:100%; border:0; border-top:1px solid #ccc;">
   <p class="hint">Используйте панель на карте слева, чтобы нарисовать новые зоны запрета.</p>
 </div>

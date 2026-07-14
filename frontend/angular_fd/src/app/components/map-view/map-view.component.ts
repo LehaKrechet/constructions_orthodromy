@@ -15,6 +15,7 @@ export class MapViewComponent implements OnInit, OnDestroy {
   private map!: L.Map;
   private drawnItems = new L.FeatureGroup();
   private currentPolyline: L.Polyline | null = null;
+  private currentCircle: L.Polygon | null = null;
   private intersectionLayers: L.Polyline[] = [];
   private rawPolygonsData: number[][][] = [];
   private lastParams: any = null;
@@ -33,6 +34,10 @@ export class MapViewComponent implements OnInit, OnDestroy {
     this.sub = this.mapStateService.calculate$.subscribe(params => {
       this.lastParams = params;
       this.updateOrthodrome();
+    });
+    this.sub = this.mapStateService.calculateCitrle.subscribe(params => {
+      this.lastParams = params;
+      this.get_circle();
     });
   }
 
@@ -149,6 +154,44 @@ export class MapViewComponent implements OnInit, OnDestroy {
       }
     });
   }
+
+
+
+private get_circle() {
+  if (!this.lastParams) return;
+
+  this.apiService.get_circle(this.lastParams).subscribe({
+    next: (data) => {
+      if (data.status === 'success' && data.coords) {
+        
+        // ШАГ 1: Удаляем старый круг с карты, если он уже был нарисован
+        if (this.currentCircle) {
+          this.map.removeLayer(this.currentCircle);
+        }
+
+        // ШАГ 2: Переворачиваем координаты из [Lng, Lat] в [Lat, Lng] для Leaflet
+        const leafletCoords = data.coords.map((point: [number, number]) => [point[1], point[0]]);
+        // const leafletCoords = data.coords;
+        console.log(data.coords)
+
+        // ШАГ 3: Рисуем красивый полигон (круг)
+        this.currentCircle = L.polygon(leafletCoords, {
+          color: '#00ff4c',       // Цвет линии контура
+          fillColor: '#00ff4c',   // Цвет заливки внутри круга
+          fillOpacity: 0.2,       // Прозрачность заливки (20%)
+          weight: 3,              // Толщина линии контура
+          opacity: 0.8            // Прозрачность контура
+        }).addTo(this.map);
+
+        // По желанию: автоматически подогнать экран карты под размер круга
+        // this.map.fitBounds(this.currentCircle.getBounds());
+      }
+    },
+    error: (err) => {
+      console.error('Ошибка при получении координат круга:', err);
+    }
+  });
+}
 
   private checkLineIntersections(lineCoords: number[][]) {
     if (!this.rawPolygonsData || this.rawPolygonsData.length === 0) return;

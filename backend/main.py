@@ -2,6 +2,7 @@ import calculation_orthodrome as calculation_orthodrome
 from flask import Flask, request, jsonify, send_from_directory
 import os
 import bd as bd
+import other_calculation as other_calculation
 
 app = Flask(__name__)
 
@@ -160,6 +161,25 @@ def check_intersections():
     except Exception as e:
         return jsonify({
             "status": "error",
+            "message": str(e)
+        }), 400
+    
+@app.route('/get_circle', methods=['POST'])
+def get_circle():
+    try:
+        data = request.get_json()
+        lon = float(data['lon'])
+        lat = float(data['lat'])
+        radius = float(data['radius'])
+        coords = other_calculation.circle(lon, lat, radius)
+        return jsonify({
+            "status":'success',
+            "coords": coords
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            "status":'error',
             "message": str(e)
         }), 400
 

@@ -33,4 +33,9 @@ export class MapApiService {
   checkIntersections(lineCoords: number[][]): Observable<any> {
     return this.http.post(`${this.baseUrl}/check_intersections`, { line_coords: lineCoords });
   }
+
+  get_circle(payload: any): Observable<any> {
+    return this.http.post(`${this.baseUrl}/get_circle`, payload);
+  }
+
 }
