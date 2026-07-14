@@ -33,7 +33,7 @@ def calculate():
                 result_coords = calculation_orthodrome.ck_42(lon1, lat1, lon2, lat2, points)
             case 'Меркатор':
                 result_coords = calculation_orthodrome.merkator(lon1, lat1, lon2, lat2, points)
-    
+            
         
         return jsonify({
             "status": "success",

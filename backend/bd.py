@@ -3,6 +3,8 @@ import json
 from dotenv import load_dotenv
 from sqlalchemy import Column, Integer, create_engine, literal
 from sqlalchemy.orm import declarative_base, Session, sessionmaker
+from sqlalchemy.dialects.postgresql import ARRAY, DOUBLE_PRECISION
+from sqlalchemy.ext.declarative import declarative_base
 from geoalchemy2 import Geometry
 from geoalchemy2.functions import ST_AsGeoJSON, ST_Transform, ST_Intersection, ST_Intersects, ST_Centroid, ST_DWithin
 
@@ -26,6 +28,13 @@ class ExclusionZone(Base):
     id = Column(Integer, primary_key=True)
     # Создаем поле для геометрии с типом POLYGON и SRID 4326
     geom = Column(Geometry(geometry_type='POLYGON', srid=4326))
+
+class Orthodromys(Base):
+    __tablename__ = 'orthodromys'
+    
+    id = Column(Integer, primary_key=True)
+    # Создаем поле для геометрии с типом POLYGON и SRID 4326
+    orthodromy = Column(ARRAY(DOUBLE_PRECISION, dimensions=2))
 
 
 def _coords_to_wkt(polygon_coords):
@@ -163,3 +172,32 @@ def find_intersections_in_db(session: Session, line_coords_lat_lon):
     except Exception as e:
         print(f"Ошибка при поиске пересечений в БД: {e}")
         return {"intersects": False, "intersected_parts": []}
+    
+def add_orthodromy(session: Session, line_coords):
+    try:
+        new_orth = Orthodromys(orthodromy=line_coords)
+        session.add(new_orth)
+        session.commit()
+        return True
+    
+    except Exception as e:
+        session.rollback()
+        print(f"Ошибка при добавлении ортодромии: {e}")
+        return False
+def delete_orthodromy(session: Session, line_coords):
+    try:
+        orth_to_delete = session.query(Orthodromys).filter(
+        Orthodromys.orthodromy == line_coords
+    ).first()
+        if orth_to_delete:
+            session.delete(orth_to_delete)
+            session.commit()
+            return True
+        else:
+            session.commit()
+            return False
+    
+    except Exception as e:
+        session.rollback()
+        print(f"Ошибка при удалии ортодромии: {e}")
+        return False
