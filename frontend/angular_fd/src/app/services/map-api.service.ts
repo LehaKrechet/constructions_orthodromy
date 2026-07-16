@@ -38,4 +38,20 @@ export class MapApiService {
     return this.http.post(`${this.baseUrl}/get_circle`, payload);
   }
 
+  add_orthodromy(payload: any): Observable<any> {
+    return this.http.post(`${this.baseUrl}/add_orthodromy`, payload);
+  }
+
+  delete_orthodromy(payload: any): Observable<any> {
+    return this.http.post(`${this.baseUrl}/delete_orthodromy`, payload);
+  }
+
+  get_orthodromy(): Observable<any> {
+    return this.http.get(`${this.baseUrl}/get_orthodromy`);
+  }
+
+  get_lines_intersection_circle(payload: any): Observable<any> {
+    return this.http.post(`${this.baseUrl}/get_lines_intersection_circle`, payload);
+  }
+
 }

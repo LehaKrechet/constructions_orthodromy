@@ -33,7 +33,6 @@ def calculate():
                 result_coords = calculation_orthodrome.ck_42(lon1, lat1, lon2, lat2, points)
             case 'Меркатор':
                 result_coords = calculation_orthodrome.merkator(lon1, lat1, lon2, lat2, points)
-            
         
         return jsonify({
             "status": "success",
@@ -182,6 +181,76 @@ def get_circle():
             "status":'error',
             "message": str(e)
         }), 400
+    
+@app.route('/add_orthodromy', methods=['POST'])
+def add_orthodromy():
+    try:
+        data = request.get_json()
+        with bd.SessionLocal() as session:
+            bd.add_orthodromy(session, data)
+        return jsonify({
+            'status': 'success',
+            'message': 'Orthodromy added successfuly'
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            'status': 'error', 
+            'message': str(e)
+        }), 400
+    
+@app.route('/delete_orthodromy', methods=['POST'])
+def delete_orthodrome():
+    try:
+        data = request.get_json()
+        with bd.SessionLocal() as session:
+            bd.delete_orthodromy(session, data)
+        return jsonify({
+            'status':'success',
+            'message': 'Delete othodromy'
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 400
+    
+@app.route('/get_orthodromy', methods=['GET'])
+def get_orthodromy():
+    try:
+        with bd.SessionLocal() as session:
+            result = bd.get_orthodromy(session)
+        return jsonify({
+            'status':'success',
+            'coords': result
+        }),200
+    except Exception as e:
+        return jsonify({
+            'status':'error',
+            'message': str(e)
+        }),400
+    
+@app.route('/get_lines_intersection_circle', methods=['POST'])
+def get_lines_intersection_circle():
+    try:
+        data = request.get_json()
+        intersections=[]
+        with bd.SessionLocal() as session:
+            orthodromys = bd.get_orthodromy(session)
+        for i in orthodromys: 
+            if other_calculation.intersection_line_circle(i, data):
+                intersections.append(i)
+        return jsonify({
+            'status':'success',
+            'coords':intersections
+        }),200
+    
+    except Exception as e:
+        return jsonify({
+            'status':'success',
+            'message': str(e)
+        }),400
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

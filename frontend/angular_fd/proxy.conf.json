@@ -26,5 +26,21 @@
   "/get_circle": {
     "target": "http://127.0.0.1:5000",
     "secure": false
+  },
+  "/add_orthodromy": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/delete_orthodromy": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/get_orthodromy": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
+  },
+  "/get_lines_intersection_circle": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
   }
 }

@@ -39,6 +39,19 @@
 
   <button (click)="onSubmit()">Построить линию</button>
 
+<div class="input-group" style="margin-top: 15px;">
+    <label>Сохраненные ортодромии</label>
+    <select [(ngModel)]="selectedOrthodromy" (change)="onOrthodromySelect()">
+      <option [ngValue]="null">-- Выберите сохраненную линию --</option>
+      <option *ngFor="let ortho of allSavedOrthodromies" [ngValue]="ortho">
+        {{ ortho.name }}
+      </option>
+    </select>
+  </div>
+
+  <button (click)="add_orthodromy()">Сохранить линию</button>
+  <button (click)="delete_orthodromy()">Удалить линию</button>
+
   <h3>Исследуемая окружность</h3>
   
   <div class="coordinates-grid">
@@ -56,6 +69,24 @@
     </div>
   </div>
   <button (click)="onSubmit_circle()">Построить окружность</button>
+
+  <div class="form-group" style="margin-top: 15px;">
+    <label for="orthodromySelect" class="form-label">Ортодромии, пересекающие зону:</label>
+    <select 
+      id="orthodromySelect" 
+      class="form-control" 
+      [(ngModel)]="selectedIntersectingOrthodromy" 
+      (change)="onIntersectingOrthodromySelect()"
+      [disabled]="intersectingOrthodromies.length === 0">
+      
+      <option [ngValue]="null" disabled selected>
+        {{ intersectingOrthodromies.length > 0 ? '-- Выберите линию --' : 'Нет пересекающих линий' }}
+      </option>
+      <option *ngFor="let item of intersectingOrthodromies" [ngValue]="item">
+        {{ item.name }}
+      </option>
+    </select>
+  </div>
 
   
   <hr style="width:100%; border:0; border-top:1px solid #ccc;">

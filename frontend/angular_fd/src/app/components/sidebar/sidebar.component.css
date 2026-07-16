@@ -1,0 +1,26 @@
+
+#sidebar {
+
+  height: 100vh; 
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box; 
+}
+
+
+#sidebar::-webkit-scrollbar {
+  width: 6px; /* ширина полосы прокрутки */
+}
+
+#sidebar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05); /* фон дорожки */
+}
+
+#sidebar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2); /* цвет самого ползунка */
+  border-radius: 4px;
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3); /* цвет ползунка при наведении */
+}

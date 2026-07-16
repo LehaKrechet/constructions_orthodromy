@@ -184,6 +184,7 @@ def add_orthodromy(session: Session, line_coords):
         session.rollback()
         print(f"Ошибка при добавлении ортодромии: {e}")
         return False
+    
 def delete_orthodromy(session: Session, line_coords):
     try:
         orth_to_delete = session.query(Orthodromys).filter(
@@ -201,3 +202,12 @@ def delete_orthodromy(session: Session, line_coords):
         session.rollback()
         print(f"Ошибка при удалии ортодромии: {e}")
         return False
+    
+def get_orthodromy(session: Session):
+    result = list(session.query(Orthodromys.orthodromy).all())
+    all_lines = []
+    for record in result:
+        if record.orthodromy: # проверяем, что поле с координатами не пустое
+            all_lines.append(record.orthodromy)
+    return all_lines
+

@@ -20,6 +20,8 @@ export class MapViewComponent implements OnInit, OnDestroy {
   private rawPolygonsData: number[][][] = [];
   private lastParams: any = null;
   private sub!: Subscription;
+  private orthodromy_line: number[][] = [];
+  private selectSub!: Subscription;
 
   constructor(
     private apiService: MapApiService,
@@ -35,9 +37,23 @@ export class MapViewComponent implements OnInit, OnDestroy {
       this.lastParams = params;
       this.updateOrthodrome();
     });
+
     this.sub = this.mapStateService.calculateCitrle.subscribe(params => {
       this.lastParams = params;
       this.get_circle();
+    });
+
+    this.sub = this.mapStateService.addOrthodromy.subscribe(params => {
+      this.add_orthodromy();
+    });
+
+    this.sub = this.mapStateService.deleteOrtohromy.subscribe(params => {
+      this.lastParams = params;
+      this.delete_orthodromy();
+    });
+
+    this.selectSub = this.mapStateService.selectOrthodromy$.subscribe(orthodromy => {
+      this.displaySelectedOrthodromy(orthodromy);
     });
   }
 
@@ -148,7 +164,7 @@ export class MapViewComponent implements OnInit, OnDestroy {
           this.currentPolyline = L.polyline(data.coords, {
             color: '#0055ff', weight: 3, opacity: 0.8
           }).addTo(this.map);
-
+          this.orthodromy_line = data.coords;
           this.checkLineIntersections(data.coords);
         }
       }
@@ -164,17 +180,17 @@ private get_circle() {
     next: (data) => {
       if (data.status === 'success' && data.coords) {
         
-        // ШАГ 1: Удаляем старый круг с карты, если он уже был нарисован
         if (this.currentCircle) {
           this.map.removeLayer(this.currentCircle);
         }
 
-        // ШАГ 2: Переворачиваем координаты из [Lng, Lat] в [Lat, Lng] для Leaflet
+        // Переворачиваем координаты из [Lng, Lat] в [Lat, Lng] для Leaflet
         const leafletCoords = data.coords.map((point: [number, number]) => [point[1], point[0]]);
-        // const leafletCoords = data.coords;
-        console.log(data.coords)
 
-        // ШАГ 3: Рисуем красивый полигон (круг)
+        const centerLat = this.lastParams.lat;
+        const centerLon = this.lastParams.lon;
+        const radiusInMeters = this.lastParams.radius;
+
         this.currentCircle = L.polygon(leafletCoords, {
           color: '#00ff4c',       // Цвет линии контура
           fillColor: '#00ff4c',   // Цвет заливки внутри круга
@@ -183,15 +199,83 @@ private get_circle() {
           opacity: 0.8            // Прозрачность контура
         }).addTo(this.map);
 
-        // По желанию: автоматически подогнать экран карты под размер круга
-        // this.map.fitBounds(this.currentCircle.getBounds());
+        this.mapStateService.triggerCircleCoordinates(data.coords);
       }
     },
     error: (err) => {
       console.error('Ошибка при получении координат круга:', err);
     }
   });
-}
+  }
+  private displaySelectedOrthodromy(orthodromy: any) {
+    // Защита: если объект пустой или в нем нет координат — ничего не делаем
+    if (!orthodromy || !orthodromy.coords) {
+      return;
+    }
+
+    const coords = orthodromy.coords;
+
+    // Проверяем, что координаты пришли в виде непустого массива
+    if (!Array.isArray(coords) || coords.length === 0) {
+      return;
+    }
+
+    // Удаляем старую линию, если она была на карте
+    if (this.currentPolyline) {
+      this.map.removeLayer(this.currentPolyline);
+    }
+
+    // Отрисовываем выбранную линию
+    this.currentPolyline = L.polyline(coords, {
+      color: '#0055ff', 
+      weight: 3, 
+      opacity: 0.8
+    }).addTo(this.map);
+
+    this.orthodromy_line = coords;
+
+    // Центрируем карту по границам новой линии
+    if (this.currentPolyline) {
+      this.map.fitBounds(this.currentPolyline.getBounds());
+    }
+
+    // Запускаем ваш метод проверки пересечений с полигонами
+    this.checkLineIntersections(coords);
+  }
+
+  private add_orthodromy(){
+
+    this.apiService.add_orthodromy(this.orthodromy_line).subscribe({
+      next: (data) => {
+        if (data.status === 'success') {
+          console.log(data.message)
+          this.mapStateService.triggerRefreshList();
+        }else{
+          console.log(data.message)
+        }
+      }
+    });
+  }
+  private delete_orthodromy(){
+
+    this.apiService.delete_orthodromy(this.orthodromy_line).subscribe({
+      next: (data) => {
+        if (data.status === 'success') {
+          console.log(data.message)
+          if (this.currentPolyline) {
+            this.map.removeLayer(this.currentPolyline);
+            this.currentPolyline = null;
+          }
+          this.intersectionLayers.forEach(layer => this.map.removeLayer(layer));
+          this.intersectionLayers = [];
+          this.orthodromy_line = [];
+          this.mapStateService.triggerRefreshList();
+        }else{
+          console.log(data.message)
+        }
+      }
+    });
+  }
 
   private checkLineIntersections(lineCoords: number[][]) {
     if (!this.rawPolygonsData || this.rawPolygonsData.length === 0) return;

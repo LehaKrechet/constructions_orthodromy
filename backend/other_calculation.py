@@ -15,15 +15,16 @@ def circle(lat, lon, radius):
     return coords
 
 def intersection_line_circle(line, circle):
-    """
-    Пересекается ли круг и линия
-    line_coords: [[lon1, lat1], [lon2, lat2], ...]
-    polygon_coords: [[lon1, lat1], [lon2, lat2], ...]
-    """
-    line_geo = LineString(line)
-    poly_geo = Polygon(circle)
-    
-    if line_geo.intersects(poly_geo):
-        return True
-    else:
+
+    try:
+        line_xy = line
+        circle_xy = [[pt[1], pt[0]] for pt in circle]
+
+        line_geo = LineString(line_xy)
+        poly_geo = Polygon(circle_xy)
+        
+        return line_geo.intersects(poly_geo)
+        
+    except Exception as e:
+        print(f"Ошибка при расчете пересечения: {e}")
         return False
