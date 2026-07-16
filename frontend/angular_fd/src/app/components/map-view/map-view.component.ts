@@ -187,10 +187,6 @@ private get_circle() {
         // Переворачиваем координаты из [Lng, Lat] в [Lat, Lng] для Leaflet
         const leafletCoords = data.coords.map((point: [number, number]) => [point[1], point[0]]);
 
-        const centerLat = this.lastParams.lat;
-        const centerLon = this.lastParams.lon;
-        const radiusInMeters = this.lastParams.radius;
-
         this.currentCircle = L.polygon(leafletCoords, {
           color: '#00ff4c',       // Цвет линии контура
           fillColor: '#00ff4c',   // Цвет заливки внутри круга

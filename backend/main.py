@@ -1,5 +1,5 @@
 import calculation_orthodrome as calculation_orthodrome
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, redirect
 import os
 import bd as bd
 import other_calculation as other_calculation
@@ -8,11 +8,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-
-    frontend_dir = os.path.abspath(os.path.join(current_dir, '..', 'frontend'))
-
-    return send_from_directory(frontend_dir, 'index.html')
+    return redirect("http://127.0.0.1:4200")
 
 @app.route('/calculate', methods=['POST'])
 def calculate():

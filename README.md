@@ -4,6 +4,8 @@
 
 Также присутствует возможность ставить, удалять и редактировать полигоны зон запрета (зон исключения). Часть ортодромии, проходящая через зону запрета, автоматически вычисляется в БД и выделяется на карте красным цветом.
 
+Также есть возможность сохранения ортодромии, и вычесления какиих из сохраненных ортодромий проходят через исследуемую окружность.
+
 ## 🔥 Ключевые возможности
 
 * **Высокоточные вычисления:** Расчет промежуточных точек ортодромии на эллипсоиде с помощью библиотеки `pyproj`.
@@ -22,19 +24,6 @@
 * **База данных:** PostgreSQL с расширением PostGIS
 * **Фронтенд:** JavaScript, Leaflet, Leaflet.draw, HTML5 / CSS3
 
-## 📂 Структура каталогов
-
-Для корректной работы относительных путей Flask (`../frontend/index.html`) проект должен быть организован следующим образом:
-
-```
-constructions_orthodromy/
-├── backend/
-│   ├── main.py                     # Запуск Flask-сервера и API-роуты
-│   └── calculation_orthodrome.py   # Функции расчета ортодромии
-|   └── bd.py      # Функция для работы с базой данных
-└── frontend/
-    └── index.html       # Веб-интерфейс и логика карты
-```
 
 🚀 Быстрый старт
 1. Подготовка окружения и установка
@@ -63,7 +52,7 @@ DB_PASS=your_db_password
 CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
-Создание таблицы exclusion_zones
+Создание таблицы exclusion_zones и orthodromys
 
 ```Bash
 CREATE TABLE exclusion_zones (
@@ -74,8 +63,14 @@ CREATE TABLE exclusion_zones (
     geom geometry(Polygon, 4326) NOT NULL
 );
 
+CREATE TABLE orthodromys (
+    id SERIAL PRIMARY KEY,
+    orthodromy DOUBLE PRECISION[]
+);
 -- Создание пространственного индекса GIST для быстрого поиска пересечений
 CREATE INDEX exclusion_zones_geom_idx ON exclusion_zones USING gist (geom);
+
+
 ```
 3. Запуск приложения
 
@@ -88,19 +83,12 @@ python3 main.py
 
 4. Использование
 
-Если использовать стандартную страницу
-
-Откройте браузер и перейдите по адресу:
-
-👉 http://127.0.0.1:5000
-
-Если использовать Angular
-
 ```Bash
 cd frontend/angular_fd
 nmp install
 npm start
 ```
 Откройте браузер и перейдите по адресу:
-
+👉 http://127.0.0.1:5000
+или
 👉 http://127.0.0.1:4200
