@@ -23,7 +23,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
     coordMode: 'WGS84',
     lon: 37,
     lat: 55,
-    radius: 1000000
+    radius: 1000000,
+    avoidZones: false,
+    bufferDistance: 0.1
   };
 
   allSavedOrthodromies: any[] = [];      

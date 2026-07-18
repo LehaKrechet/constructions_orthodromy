@@ -42,5 +42,9 @@
   "/get_lines_intersection_circle": {
     "target": "http://127.0.0.1:5000",
     "secure": false
+  },
+  "/calculate_safe_route": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false
   }
 }

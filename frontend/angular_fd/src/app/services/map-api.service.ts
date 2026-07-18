@@ -53,5 +53,9 @@ export class MapApiService {
   get_lines_intersection_circle(payload: any): Observable<any> {
     return this.http.post(`${this.baseUrl}/get_lines_intersection_circle`, payload);
   }
+  
+  calculateSafeRoute(payload: any): Observable<any> {
+    return this.http.post(`${this.baseUrl}/calculate_safe_route`, payload);
+  }
 
 }

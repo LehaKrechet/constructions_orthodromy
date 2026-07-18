@@ -37,7 +37,23 @@
     <input type="number" [(ngModel)]="params.points" min="1">
   </div>
 
-  <button (click)="onSubmit()">Построить линию</button>
+  <div style="margin: 15px 0; padding: 10px; border: 1px dashed #ccc; border-radius: 4px;">
+    <h4 style="margin-top: 0; margin-bottom: 10px;">Обход запретных зон</h4>
+    
+    <div class="input-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+      <input type="checkbox" id="avoidZones" [(ngModel)]="params.avoidZones">
+      <label for="avoidZones" style="cursor: pointer; margin: 0;">Включить обход зон</label>
+    </div>
+
+    <div class="coordinates-grid" *ngIf="params.avoidZones">
+      <div class="input-group">
+        <label>Отступ буфера</label>
+        <input type="number" [(ngModel)]="params.bufferDistance" step="0.01" min="0.001">
+      </div>
+    </div>
+  </div>
+
+  <button (click)="onSubmit()">Построить ортодромию</button>  
 
 <div class="input-group" style="margin-top: 15px;">
     <label>Сохраненные ортодромии</label>

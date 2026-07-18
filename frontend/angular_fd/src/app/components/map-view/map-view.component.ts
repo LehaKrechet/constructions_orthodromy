@@ -22,6 +22,7 @@ export class MapViewComponent implements OnInit, OnDestroy {
   private sub!: Subscription;
   private orthodromy_line: number[][] = [];
   private selectSub!: Subscription;
+  private currentPolylineSave: L.Polyline | null = null;
 
   constructor(
     private apiService: MapApiService,
@@ -153,22 +154,86 @@ export class MapViewComponent implements OnInit, OnDestroy {
 
   private updateOrthodrome() {
     if (!this.lastParams) return;
+// Если включена опция "обход зон"
+    if (this.lastParams.avoidZones) {
+      // 1. Сначала рассчитываем стандартную ортодромию
+      this.apiService.calculateOrthodrome(this.lastParams).subscribe({
+        next: (orthoData) => {
+          if (orthoData.status === 'success') {
+            if (this.currentPolyline) {
+              this.map.removeLayer(this.currentPolyline);
+            }
+            
+            // Сохраняем полученные координаты ортодромии [lat, lon]
+            this.orthodromy_line = orthoData.coords; 
+            
+            // Отображаем стандартную линию (синим цветом)
+            this.currentPolyline = L.polyline(orthoData.coords, { color: '#0000ff', weight: 3 }).addTo(this.map);
+            this.checkLineIntersections(orthoData.coords);
 
-    this.apiService.calculateOrthodrome(this.lastParams).subscribe({
-      next: (data) => {
-        if (data.status === 'success') {
-          if (this.currentPolyline) {
-            this.map.removeLayer(this.currentPolyline);
+            // 2. Формируем payload для безопасного пути, передавая рассчитанную ортодромию.
+
+            const payload = {
+              lon1: this.lastParams.lon1,
+              lat1: this.lastParams.lat1,
+              lon2: this.lastParams.lon2,
+              lat2: this.lastParams.lat2,
+              buffer_distance: this.lastParams.bufferDistance,
+              orthodrome: orthoData.coords // Передаем ортодромию бэкенду
+            };
+
+            // 3. Запускаем расчет безопасного обхода
+            this.apiService.calculateSafeRoute(payload).subscribe({
+              next: (safeData) => {
+                if (safeData.status === 'success') {
+                  if (this.currentPolylineSave) {
+                    this.map.removeLayer(this.currentPolylineSave);
+                  }
+                  
+                  // Бэкенд возвращает список [lon, lat]. Leaflet требует [lat, lon]
+                  const leafletCoords: L.LatLngExpression[] = safeData.coords.map((pt: number[]) => [pt[1], pt[0]]);
+                  
+                  // Рисуем безопасный обходной путь зеленым пунктиром
+                  this.currentPolylineSave = L.polyline(leafletCoords, { 
+                    color: '#00ff11', 
+                    weight: 4
+                  }).addTo(this.map);
+
+                  this.map.fitBounds(this.currentPolylineSave.getBounds());
+                } else {
+                  alert(`Не удалось построить путь: ${safeData.message}`);
+                }
+              },
+              error: (err) => {
+                console.error('Ошибка при расчете безопасного пути:', err);
+              }
+            });
           }
+        },
+        error: (err) => console.error('Ошибка расчета базовой ортодромии:', err)
+      });
 
-          this.currentPolyline = L.polyline(data.coords, {
-            color: '#0055ff', weight: 3, opacity: 0.8
-          }).addTo(this.map);
-          this.orthodromy_line = data.coords;
-          this.checkLineIntersections(data.coords);
+    } else {
+      // ИНАЧЕ: Обычная логика построения стандартной ортодромии
+      this.apiService.calculateOrthodrome(this.lastParams).subscribe({
+        next: (data) => {
+          if (data.status === 'success') {
+            if (this.currentPolylineSave) {
+              this.map.removeLayer(this.currentPolylineSave);
+            }
+            if (this.currentPolyline) {
+              this.map.removeLayer(this.currentPolyline);
+            }
+            this.orthodromy_line = data.coords;
+            this.currentPolyline = L.polyline(data.coords, { color: '#0000ff', weight: 3 }).addTo(this.map);
+            this.map.fitBounds(this.currentPolyline.getBounds());
+
+            // Запуск проверки пересечений (только для стандартной линии)
+            this.checkLineIntersections(data.coords);
+          }
         }
-      }
-    });
+      });
+    }
   }
 
 

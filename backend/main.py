@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, redirect
 import os
 import bd as bd
 import other_calculation as other_calculation
+from pyproj import Geod
 
 app = Flask(__name__)
 
@@ -12,6 +13,9 @@ def index():
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
+    """
+    Расчет ортодромии
+    """
     try:
         data = request.get_json()
         
@@ -43,6 +47,9 @@ def calculate():
     
 @app.route('/get_polygons', methods=['GET'])
 def get_polygons():
+    """
+    Получение всех сохраненых полигонов
+    """
     try:
         with bd.SessionLocal() as session:
             polygons = bd.get_polygons(session)
@@ -55,6 +62,9 @@ def get_polygons():
 
 @app.route('/add_polygon', methods=['POST'])
 def add_polygon():
+    """
+    Сохранение полигона
+    """
     try:
         data = request.get_json()
         new_polygon = data['polygon']
@@ -81,6 +91,9 @@ def add_polygon():
     
 @app.route('/delete_polygon', methods=['POST'])
 def delete_polygon():
+    """
+    Удаление сохраненного полигона
+    """
     try:
         global polygons
         data = request.get_json()
@@ -108,6 +121,9 @@ def delete_polygon():
     
 @app.route('/update_all_polygons', methods=['POST'])
 def update_all_polygons():
+    """
+    Удаление а затем добавление всех полигонов в базу
+    """
     try:
         try:
             with bd.SessionLocal() as session:
@@ -142,6 +158,9 @@ def update_all_polygons():
     
 @app.route('/check_intersections', methods=['POST'])
 def check_intersections():
+    """
+    Проверка пересечение ортодромии и зон запрета
+    """
     try:
         data = request.get_json()
         line_coords = data['line_coords']
@@ -161,6 +180,9 @@ def check_intersections():
     
 @app.route('/get_circle', methods=['POST'])
 def get_circle():
+    """
+    Получение исследуемой окружности
+    """
     try:
         data = request.get_json()
         lon = float(data['lon'])
@@ -180,6 +202,9 @@ def get_circle():
     
 @app.route('/add_orthodromy', methods=['POST'])
 def add_orthodromy():
+    """
+    Сохранение сохраненной ортодромии
+    """
     try:
         data = request.get_json()
         with bd.SessionLocal() as session:
@@ -197,6 +222,9 @@ def add_orthodromy():
     
 @app.route('/delete_orthodromy', methods=['POST'])
 def delete_orthodrome():
+    """
+    Удаление сохраненной ортодромии
+    """
     try:
         data = request.get_json()
         with bd.SessionLocal() as session:
@@ -214,6 +242,9 @@ def delete_orthodrome():
     
 @app.route('/get_orthodromy', methods=['GET'])
 def get_orthodromy():
+    """
+    Построение все сохранненых ортодромий
+    """
     try:
         with bd.SessionLocal() as session:
             result = bd.get_orthodromy(session)
@@ -229,6 +260,9 @@ def get_orthodromy():
     
 @app.route('/get_lines_intersection_circle', methods=['POST'])
 def get_lines_intersection_circle():
+    """
+    Получение маршрутов пересекающих исследуемаю окружность
+    """
     try:
         data = request.get_json()
         intersections=[]
@@ -248,5 +282,62 @@ def get_lines_intersection_circle():
             'message': str(e)
         }),400
 
+@app.route('/calculate_safe_route', methods=['POST'])
+def calculate_safe_route():
+    """
+    Построение безопасного маршрута в обход запретных зон
+    """
+    try:
+        data = request.get_json()
+        orthodrome_coords = data.get('orthodrome', [])
+
+        start_lon = float(orthodrome_coords[0][1])
+        start_lat = float(orthodrome_coords[0][0])
+        end_lon = float(orthodrome_coords[-1][1])
+        end_lat = float(orthodrome_coords[-1][0])
+
+        
+        buffer_distance = float(data.get('buffer_distance', 0.1))
+        
+        start = [start_lon, start_lat]
+        end = [end_lon, end_lat]
+
+
+        # Получаем запретные зоны из БД
+        with bd.SessionLocal() as session:
+            polygons = bd.get_polygons(session)
+
+        orthodrome_coords_xy = [[pt[1], pt[0]] for pt in orthodrome_coords]
+        if not polygons:
+            # Если зон нет, возвращаем присланную ортодромию
+            coords = orthodrome_coords_xy
+            return jsonify({
+                "status": "success",
+                "coords": coords,
+                "message": "No exclusion zones found. Frontend orthodrome returned."
+            }), 200
+        
+        # Строим безопасный маршрут
+        safe_path = other_calculation.build_smooth_path(
+            start=start,
+            end=end,
+            polygons_coords=polygons,
+            buffer_distance=buffer_distance
+        )
+        
+        return jsonify({
+            "status": "success",
+            "coords": safe_path,
+            "message": f"Route calculated successfully with {len(safe_path)} waypoints"
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error calculating safe route: {str(e)}"
+        }), 400
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
+
